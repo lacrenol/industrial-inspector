@@ -235,6 +235,11 @@ def _parse_gemini_response(raw: str) -> dict[str, str]:
             status_category = status_match.group(1)
     
     return {
+        "description": description,
+        "status_category": status_category
+    }
+
+async def _analyze_defect_with_vertex_ai(
     image: Image.Image,
     axis: str,
     construction_type: str,
@@ -243,23 +248,8 @@ def _parse_gemini_response(raw: str) -> dict[str, str]:
     print(f"DEBUG: Vertex AI analysis started for {construction_type}, axis {axis}")
     
     try:
-        from google.cloud import aiplatform
-        from google.cloud.aiplatform import gapic
-        from google.oauth2 import service_account
-        
-        # Initialize Vertex AI client
-        credentials = service_account.Credentials.from_service_account_file(
-            "path/to/service_account_key.json",
-            scopes=["https://www.googleapis.com/auth/cloud-platform"],
-        )
-        aiplatform.init(project="your-project-id", credentials=credentials)
-        
-        # Create Vertex AI model resource
-        model_resource = aiplatform.Model(
-            display_name="your-model-display-name",
-            location="your-model-location",
-            project="your-project-id",
-        )
+        model = GenerativeModel("gemini-2.0-flash-preview")
+        print("DEBUG: Vertex AI model created")
         
         # Convert PIL image to bytes
         img_byte_arr = io.BytesIO()
@@ -268,7 +258,7 @@ def _parse_gemini_response(raw: str) -> dict[str, str]:
         print(f"DEBUG: Image converted to bytes, size: {len(img_bytes)}")
         
         # Create image part for Vertex AI
-        image_part = gapic.Image(image_bytes=img_bytes, mime_type="image/jpeg")
+        image_part = Part.from_data(img_bytes, mime_type="image/jpeg")
         print("DEBUG: Vertex AI image part created")
         
         prompt = f"""
@@ -278,20 +268,22 @@ Axis: {axis}
 Type: {construction_type}
 Location: {location or 'N/A'}
 
-JSON format: {{"description": "...", "status_category": "A|B|C|D"}}
+JSON format: {{\"description\": \"...\", \"status_category\": \"A|B|C|D\"}}
 """
         print(f"DEBUG: Prompt length: {len(prompt)} characters")
         
         # Generate content
         response = await asyncio.to_thread(
-            model_resource.predict(
-                instances=[{"prompt": prompt, "image": image_part}],
-                parameters={"temperature": 0.1, "max_output_tokens": 500},
-            )
+            model.generate_content,
+            [prompt, image_part],
+            generation_config={
+                "temperature": 0.1,
+                "max_output_tokens": 500,
+            },
         )
         print("DEBUG: Vertex AI response received")
         
-        raw = response.predictions[0].text
+        raw = response.text
         print(f"DEBUG: Vertex AI raw response: {raw[:200]}...")
         
         data = _parse_gemini_response(raw)
