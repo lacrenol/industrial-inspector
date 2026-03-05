@@ -20,32 +20,18 @@ export const SurveyListScreen: React.FC<Props> = ({ navigation }) => {
 
   const loadSurveys = async () => {
     setLoading(true);
-    const isSecureStoreAvailable = await SecureStore.isAvailableAsync();
-    const userId = isSecureStoreAvailable ? await SecureStore.getItemAsync("userId") : null;
-    
-    console.log("Loading surveys for real user:", userId);
-    
+    const userId = await SecureStore.getItemAsync("userId");
     if (!userId) {
-      console.log("No user ID found, navigating to Auth");
       navigation.replace("Auth");
       return;
     }
 
     try {
       const res = await fetch(`${BACKEND_BASE_URL}/surveys?user_id=${encodeURIComponent(userId)}`);
-      console.log("Surveys response status:", res.status);
-      
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      
       const json = await res.json();
-      console.log("Real surveys data:", json);
       setSurveys(json);
     } catch (e) {
-      console.warn("Failed to load surveys from backend:", e);
-      // Don't set demo data - show empty state
-      setSurveys([]);
+      console.warn("Failed to load surveys", e);
     } finally {
       setLoading(false);
     }
@@ -64,10 +50,6 @@ export const SurveyListScreen: React.FC<Props> = ({ navigation }) => {
     navigation.navigate("Camera", { surveyId });
   };
 
-  const handleOpenReports = () => {
-    navigation.navigate("Reports");
-  };
-
   const renderItem = ({ item }: { item: Survey }) => (
     <TouchableOpacity style={styles.card} onPress={() => handleOpenCamera(item.id)}>
       <View style={styles.cardHeader}>
@@ -82,14 +64,9 @@ export const SurveyListScreen: React.FC<Props> = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Survey Objects</Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity style={[styles.newButton, styles.reportsButton]} onPress={handleOpenReports}>
-            <Text style={styles.newButtonText}>Reports</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.newButton} onPress={handleNewSurvey}>
-            <Text style={styles.newButtonText}>+ New</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.newButton} onPress={handleNewSurvey}>
+          <Text style={styles.newButtonText}>+ New</Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -128,15 +105,6 @@ const styles = StyleSheet.create({
   title: {
     ...typography.title,
     color: colors.text
-  },
-  headerButtons: {
-    flexDirection: "row",
-    gap: spacing.sm
-  },
-  reportsButton: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border
   },
   newButton: {
     paddingHorizontal: spacing.md,
